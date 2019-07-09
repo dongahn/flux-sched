@@ -32,37 +32,40 @@ namespace Flux {
 namespace queue_manager {
 namespace detail {
 
-template<class reapi_type>
-queue_policy_fcfs_t<reapi_type>::~queue_policy_fcfs_t ()
-{
 
+/******************************************************************************
+ *                                                                            *
+ *                    Private Methods of Queue Policy FCFS                    *
+ *                                                                            *
+ ******************************************************************************/
+
+template<class reapi_type>
+int queue_policy_fcfs_t<reapi_type>::cancel_completed_jobs (void *h)
+{
+    int rc = 0;
+    std::shared_ptr<job_t> job;
+
+    // Pop newly completed jobs (e.g., per a free request from job-manager
+    // as received by qmanager) to remove them from the resource infrastructure.
+    while ((job = complete_pop ()) != nullptr)
+        rc += reapi_type::cancel (h, job->id);
+    return rc;
 }
 
 template<class reapi_type>
-int queue_policy_fcfs_t<reapi_type>::run_sched_loop (void *h,
-                                                     bool use_alloced_queue)
+int queue_policy_fcfs_t<reapi_type>::allocate_jobs (void *h,
+                                                    bool use_alloced_queue)
 {
-    int rc1 = 0;
-    int rc2 = 0;
+    int rc = 0;
     std::shared_ptr<job_t> job;
-    std::map<uint64_t, flux_jobid_t>::iterator iter = m_pending.begin ();
+    std::map<uint64_t, flux_jobid_t>::iterator iter;
 
-    //
-    // Pop newly completed jobs (e.g., per a free request from job-manager
-    // as received by qmanager) to remove them from the resource infrastructure.
-    //
-    while ((job = complete_pop ()) != nullptr) {
-        if ((rc1 = reapi_type::cancel (h, job->id)) < 0)
-            break;
-    }
-
-    //
     // Iterate jobs in the pending job queue and try to allocate each
     // until you can't.
-    //
+    iter = m_pending.begin ();
     while (iter != m_pending.end ()) {
         job = m_jobs[iter->second];
-        if ((rc2 = reapi_type::match_allocate (h, false, job->jobspec, job->id,
+        if ((rc = reapi_type::match_allocate (h, false, job->jobspec, job->id,
                                                job->schedule.reserved,
                                                job->schedule.R,
                                                job->schedule.at,
@@ -76,8 +79,30 @@ int queue_policy_fcfs_t<reapi_type>::run_sched_loop (void *h,
         // respond to job-manager.
         iter = to_running (iter, use_alloced_queue);
     }
+    return rc;
+}
 
-    return rc1 + rc2;
+
+/******************************************************************************
+ *                                                                            *
+ *                    Public API of Queue Policy FCFS                         *
+ *                                                                            *
+ ******************************************************************************/
+
+template<class reapi_type>
+queue_policy_fcfs_t<reapi_type>::~queue_policy_fcfs_t ()
+{
+
+}
+
+template<class reapi_type>
+int queue_policy_fcfs_t<reapi_type>::run_sched_loop (void *h,
+                                                     bool use_alloced_queue)
+{
+    int rc = 0;
+    rc = cancel_completed_jobs (h);
+    rc += allocate_jobs (h, use_alloced_queue);
+    return rc;
 }
 
 } // namespace Flux::queue_manager::detail
