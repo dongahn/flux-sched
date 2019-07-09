@@ -47,6 +47,7 @@ using namespace Flux::queue_manager::detail;
 
 struct qmanager_args_t {
     std::string queue_policy;
+    std::string policy_params;
 };
 
 struct qmanager_ctx_t {
@@ -172,6 +173,10 @@ static int process_args (qmanager_ctx_t *ctx, int argc, char **argv)
                 args.queue_policy = dflt;
             }
         }
+        else if (!strncmp ("policy-params=", argv[i],
+                               sizeof ("policy-params"))) {
+            args.policy_params = strstr (argv[i], "=") + 1;
+        }
     }
 
     return rc;
@@ -180,6 +185,29 @@ static int process_args (qmanager_ctx_t *ctx, int argc, char **argv)
 static void set_default_args (qmanager_args_t &args)
 {
     args.queue_policy = "fcfs";
+    args.policy_params = "";
+}
+
+int enforce_queue_policy (qmanager_ctx_t *ctx)
+{
+    int rc = -1;
+    ctx->queue = create_queue_policy (ctx->args.queue_policy, "module");
+    if (!ctx->queue) {
+        flux_log_error (ctx->h, "%s: create_queue_policy", __FUNCTION__);
+        goto out;
+    }
+    if (ctx->args.policy_params != ""
+        && ctx->queue->set_params (ctx->args.policy_params) < 0) {
+        flux_log_error (ctx->h, "%s: queue->set_params", __FUNCTION__);
+        goto out;
+    }
+    if (ctx->queue->apply_params () < 0) {
+        flux_log_error (ctx->h, "%s: queue->apply_params", __FUNCTION__);
+        goto out;
+    }
+    rc = 0;
+out:
+    return rc;
 }
 
 static qmanager_ctx_t *qmanager_new (flux_t *h)
@@ -246,10 +274,20 @@ extern "C" int mod_main (flux_t *h, int argc, char **argv)
     int rc = -1;
     try {
         qmanager_ctx_t *ctx = NULL;
-        if (!(ctx = qmanager_new (h)))
+        if (!(ctx = qmanager_new (h))) {
             flux_log_error (h, "%s: qmanager_new", __FUNCTION__);
-        if ((rc = process_args (ctx, argc, argv)) < 0)
+            return rc;
+        }
+        if ((rc = process_args (ctx, argc, argv)) < 0) {
             flux_log_error (h, "%s: load line argument parsing", __FUNCTION__);
+            qmanager_destroy (ctx);
+            return rc;
+        }
+        if ((rc = enforce_queue_policy (ctx)) < 0) {
+            flux_log_error (h, "%s: enforce_queue_policy", __FUNCTION__);
+            qmanager_destroy (ctx);
+            return rc;
+        }
         if ((rc = flux_reactor_run (flux_get_reactor (h), 0)) < 0)
             flux_log_error (h, "%s: flux_reactor_run", __FUNCTION__);
         qmanager_destroy (ctx);
