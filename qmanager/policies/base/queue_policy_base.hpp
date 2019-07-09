@@ -102,6 +102,7 @@ protected:
     uint64_t m_pq_cnt = 0;
     uint64_t m_rq_cnt = 0;
     uint64_t m_cq_cnt = 0;
+    uint64_t m_oq_cnt = 0;
     std::map<uint64_t, flux_jobid_t> m_pending;
     std::map<uint64_t, flux_jobid_t> m_running;
     std::map<uint64_t, flux_jobid_t> m_alloced;

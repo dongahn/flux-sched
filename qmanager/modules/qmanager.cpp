@@ -45,8 +45,13 @@ using namespace Flux::queue_manager::detail;
  *                                                                            *
  ******************************************************************************/
 
+struct qmanager_args_t {
+    std::string queue_policy;
+};
+
 struct qmanager_ctx_t {
     flux_t *h;
+    qmanager_args_t args;
     ops_context *ops;
     queue_policy_base_t *queue;
 };
@@ -150,6 +155,33 @@ static void jobmanager_exception_cb (flux_t *h, flux_jobid_t id,
     return;
 }
 
+static int process_args (qmanager_ctx_t *ctx, int argc, char **argv)
+{
+    int rc = 0;
+    qmanager_args_t &args = ctx->args;
+    std::string dflt = "";
+
+    for (int i = 0; i < argc; i++) {
+        if (!strncmp ("queue-policy=", argv[i], sizeof ("queue-policy"))) {
+            dflt = args.queue_policy;
+            args.queue_policy = strstr (argv[i], "=") + 1;
+            if (!known_queue_policy (args.queue_policy)) {
+                flux_log (ctx->h, LOG_ERR,
+                          "Unknown queuing policy (%s)! Use default (%s).",
+                           args.queue_policy.c_str (), dflt.c_str ());
+                args.queue_policy = dflt;
+            }
+        }
+    }
+
+    return rc;
+}
+
+static void set_default_args (qmanager_args_t &args)
+{
+    args.queue_policy = "fcfs";
+}
+
 static qmanager_ctx_t *qmanager_new (flux_t *h)
 {
     int queue_depth = 0;
@@ -160,7 +192,9 @@ static qmanager_ctx_t *qmanager_new (flux_t *h)
         goto out;
     }
     ctx->h = h;
-    if (!(ctx->queue = create_queue_policy ("fcfs", "module"))) {
+    set_default_args (ctx->args);
+    if (!(ctx->queue = create_queue_policy (ctx->args.queue_policy,
+                                            "module"))) {
         flux_log_error (h, "%s: create_queue_policy", __FUNCTION__);
         goto out;
     }
@@ -214,6 +248,8 @@ extern "C" int mod_main (flux_t *h, int argc, char **argv)
         qmanager_ctx_t *ctx = NULL;
         if (!(ctx = qmanager_new (h)))
             flux_log_error (h, "%s: qmanager_new", __FUNCTION__);
+        if ((rc = process_args (ctx, argc, argv)) < 0)
+            flux_log_error (h, "%s: load line argument parsing", __FUNCTION__);
         if ((rc = flux_reactor_run (flux_get_reactor (h), 0)) < 0)
             flux_log_error (h, "%s: flux_reactor_run", __FUNCTION__);
         qmanager_destroy (ctx);
