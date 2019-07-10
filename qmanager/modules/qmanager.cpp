@@ -205,6 +205,8 @@ static void set_default_args (qmanager_args_t &args)
 int enforce_queue_policy (qmanager_ctx_t *ctx)
 {
     int rc = -1;
+    int queue_depth = 0;
+    const char *jm_mode = "single";
     ctx->queue = create_queue_policy (ctx->args.queue_policy, "module");
     if (!ctx->queue) {
         flux_log_error (ctx->h, "%s: create_queue_policy", __FUNCTION__);
@@ -219,6 +221,23 @@ int enforce_queue_policy (qmanager_ctx_t *ctx)
         flux_log_error (ctx->h, "%s: queue->apply_params", __FUNCTION__);
         goto out;
     }
+    if (schedutil_hello (ctx->h, jobmanager_hello_cb, ctx) < 0) {
+        flux_log_error (ctx->h, "%s: schedutil_hello", __FUNCTION__);
+        goto out;
+    }
+    if (ctx->args.queue_policy != "fcfs")
+        jm_mode = "unlimited";
+    if (schedutil_ready (ctx->h, jm_mode, &queue_depth)) {
+        flux_log_error (ctx->h, "%s: schedutil_ready", __FUNCTION__);
+        goto out;
+    }
+    if (!(ctx->ops = schedutil_ops_register (ctx->h,
+                                             jobmanager_alloc_cb,
+                                             jobmanager_free_cb,
+                                             jobmanager_exception_cb, ctx))) {
+        flux_log_error (ctx->h, "%s: schedutil_ops_register", __FUNCTION__);
+        goto out;
+    }
     rc = 0;
 out:
     return rc;
@@ -226,7 +245,6 @@ out:
 
 static qmanager_ctx_t *qmanager_new (flux_t *h)
 {
-    int queue_depth = 0;
     qmanager_ctx_t *ctx = NULL;
 
     if (!(ctx = new (std::nothrow) qmanager_ctx_t ())) {
@@ -235,26 +253,7 @@ static qmanager_ctx_t *qmanager_new (flux_t *h)
     }
     ctx->h = h;
     set_default_args (ctx->args);
-    if (!(ctx->queue = create_queue_policy (ctx->args.queue_policy,
-                                            "module"))) {
-        flux_log_error (h, "%s: create_queue_policy", __FUNCTION__);
-        goto out;
-    }
-    if (schedutil_hello (h, jobmanager_hello_cb, ctx) < 0) {
-        flux_log_error (h, "%s: schedutil_hello", __FUNCTION__);
-        goto out;
-    }
-    if (schedutil_ready (h, "single", &queue_depth)) {
-        flux_log_error (h, "%s: schedutil_ready", __FUNCTION__);
-        goto out;
-    }
-    if (!(ctx->ops = schedutil_ops_register (h,
-                                             jobmanager_alloc_cb,
-                                             jobmanager_free_cb,
-                                             jobmanager_exception_cb, ctx))) {
-        flux_log_error (h, "%s: schedutil_ops_register", __FUNCTION__);
-        goto out;
-    }
+    ctx->queue = nullptr;
 out:
     return ctx;
 }
