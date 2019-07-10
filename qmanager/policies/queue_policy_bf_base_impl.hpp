@@ -66,15 +66,17 @@ int queue_policy_bf_base_t<reapi_type>::allocate_orelse_reserve_jobs (void *h,
                                             bool use_alloced_queue)
 {
     int rc = 0;
+    unsigned int i = 0;
     std::shared_ptr<job_t> job;
     unsigned int reservation_cnt = 0;
     std::map<uint64_t, flux_jobid_t>::iterator iter;
 
     // Iterate jobs in the pending job queue and try to allocate each
-    // until you can't. When you can't allocate a job, you reserve it
-    // and then try to backfill later jobs.
-    iter = m_pending.begin ();
-    while (iter != m_pending.end ()) {
+    // until you can't or queue depth limit reached.
+    // When you can't allocate a job, you reserve it and then try
+    // to backfill later jobs.
+    for (i = 0, iter = m_pending.begin ();
+         i < m_queue_depth && iter != m_pending.end (); i++) {
         bool orelse = (reservation_cnt < m_reservation_depth)? false : true;
         job = m_jobs[iter->second];
         if ((rc = reapi_type::match_allocate (h, orelse,
@@ -116,6 +118,12 @@ template<class reapi_type>
 queue_policy_bf_base_t<reapi_type>::~queue_policy_bf_base_t ()
 {
 
+}
+
+template<class reapi_type>
+int queue_policy_bf_base_t<reapi_type>::apply_params ()
+{
+    return 0;
 }
 
 template<class reapi_type>

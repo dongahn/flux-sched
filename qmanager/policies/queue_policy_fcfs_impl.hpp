@@ -57,13 +57,14 @@ int queue_policy_fcfs_t<reapi_type>::allocate_jobs (void *h,
                                                     bool use_alloced_queue)
 {
     int rc = 0;
+    unsigned int i = 0;
     std::shared_ptr<job_t> job;
     std::map<uint64_t, flux_jobid_t>::iterator iter;
 
     // Iterate jobs in the pending job queue and try to allocate each
-    // until you can't.
-    iter = m_pending.begin ();
-    while (iter != m_pending.end ()) {
+    // until you can't or queue depth limit reached..
+    for (i = 0, iter = m_pending.begin ();
+         i < m_queue_depth && iter != m_pending.end (); i++) {
         job = m_jobs[iter->second];
         if ((rc = reapi_type::match_allocate (h, false, job->jobspec, job->id,
                                                job->schedule.reserved,
@@ -78,6 +79,7 @@ int queue_policy_fcfs_t<reapi_type>::allocate_jobs (void *h,
         // to fetch those newly allocated jobs, which have flux_msg_t to
         // respond to job-manager.
         iter = to_running (iter, use_alloced_queue);
+        i++;
     }
     return rc;
 }
@@ -93,6 +95,27 @@ template<class reapi_type>
 queue_policy_fcfs_t<reapi_type>::~queue_policy_fcfs_t ()
 {
 
+}
+
+template<class reapi_type>
+int queue_policy_fcfs_t<reapi_type>::apply_params ()
+{
+    int rc = -1;
+    try {
+        std::unordered_map<std::string, std::string>::const_iterator i;
+        if ((i = queue_policy_base_impl_t::m_params.find ("queue-depth"))
+             != queue_policy_base_impl_t::m_params.end ()) {
+            unsigned int depth = std::stoi (i->second);
+            if (depth < MAX_QUEUE_DEPTH)
+                queue_policy_base_impl_t::m_queue_depth = depth;
+        }
+        rc = 0;
+    } catch (const std::invalid_argument &e) {
+        errno = EINVAL;
+    } catch (const std::out_of_range &e) {
+        errno = ERANGE;
+    }
+    return rc;
 }
 
 template<class reapi_type>
