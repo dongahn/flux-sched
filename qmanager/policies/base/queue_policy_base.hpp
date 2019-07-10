@@ -88,7 +88,7 @@ class queue_policy_base_impl_t
 {
 public:
     int insert (std::shared_ptr<job_t> job);
-    int remove (flux_jobid_t id);
+    std::shared_ptr<job_t> remove (flux_jobid_t id);
 
 protected:
     std::shared_ptr<job_t> pending_pop ();
@@ -172,9 +172,10 @@ public:
      *  (e.g., pending queue, running queue, and alloced queue.)
      *
      *  \param id        jobid of flux_jobid_t type.
-     *  \return          0 on success; -1 on error.
+     *  \return          a shared pointer pointing to a job_t object
+     *                   on success; nullptr on error.
      */
-    int remove (flux_jobid_t id);
+    std::shared_ptr<job_t> remove (flux_jobid_t id);
 
     /*! Pop the first job from the pending job queue. The popped
      *  job is completely graduated from the queue policy layer.

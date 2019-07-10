@@ -66,6 +66,8 @@ struct qmanager_ctx_t {
 
 extern "C" int jobmanager_hello_cb (flux_t *h, const char *R, void *arg)
 {
+    flux_log (h, LOG_INFO, "existing allocation: %s", R);
+
     return 0;
 }
 
@@ -125,9 +127,8 @@ extern "C" void jobmanager_free_cb (flux_t *h, const flux_msg_t *msg,
                         __FUNCTION__);
         return;
     }
-    if (ctx->queue->remove (id)) {
+    if ((job = ctx->queue->remove (id)) == nullptr) {
         flux_log_error (h, "%s: remove", __FUNCTION__);
-        return;
     }
     if (ctx->queue->run_sched_loop ((void *)ctx->h, true) < 0) {
         // TODO: Need to tighten up anomalous conditions
@@ -153,7 +154,20 @@ extern "C" void jobmanager_free_cb (flux_t *h, const flux_msg_t *msg,
 static void jobmanager_exception_cb (flux_t *h, flux_jobid_t id,
                                      const char *t, int s, void *a)
 {
-    return;
+    if (s > 0)
+        return;
+
+    std::shared_ptr<job_t> job;
+    qmanager_ctx_t *ctx = (qmanager_ctx_t *)a;
+    std::string note = std::string ("alloc aborted due to exception type=") + t;
+    if ((job = ctx->queue->remove (id)) == nullptr) {
+        flux_log_error (h, "%s: remove", __FUNCTION__);
+        return;
+    }
+    if (job->state == job_state_kind_t::PENDING
+        && schedutil_alloc_respond_denied (h, job->msg, note.c_str ()) < 0) {
+        flux_log_error (h, "%s: schedutil_alloc_respond_denied", __FUNCTION__);
+    }
 }
 
 static int process_args (qmanager_ctx_t *ctx, int argc, char **argv)

@@ -99,7 +99,7 @@ int queue_policy_base_t::insert (std::shared_ptr<job_t> job)
     return detail::queue_policy_base_impl_t::insert (job);
 }
 
-int queue_policy_base_t::remove (flux_jobid_t id)
+std::shared_ptr<job_t> queue_policy_base_t::remove (flux_jobid_t id)
 {
     return detail::queue_policy_base_impl_t::remove (id);
 }
@@ -139,13 +139,12 @@ out:
     return rc;
 }
 
-int queue_policy_base_impl_t::remove (flux_jobid_t id)
+std::shared_ptr<job_t> queue_policy_base_impl_t::remove (flux_jobid_t id)
 {
-    int rc = -1;
-    std::shared_ptr<job_t> job;
+    std::shared_ptr<job_t> job = nullptr;
 
     if (m_jobs.find (id) == m_jobs.end ()) {
-        errno = EINVAL;
+        errno = ENOENT;
         goto out;
     }
 
@@ -169,9 +168,8 @@ int queue_policy_base_impl_t::remove (flux_jobid_t id)
     default:
         break;
     }
-    rc = 0;
 out:
-    return rc;
+    return job;
 }
 
 
@@ -181,7 +179,7 @@ std::map<uint64_t, flux_jobid_t>::iterator queue_policy_base_impl_t::
 {
     flux_jobid_t id = pending_iter->second;
     if (m_jobs.find (id) == m_jobs.end ()) {
-        errno = EINVAL;
+        errno = ENOENT;
         return pending_iter;
     }
 
@@ -205,7 +203,7 @@ std::map<uint64_t, flux_jobid_t>::iterator queue_policy_base_impl_t::
 {
     flux_jobid_t id = running_iter->second;
     if (m_jobs.find (id) == m_jobs.end ()) {
-        errno = EINVAL;
+        errno = ENOENT;
         return running_iter;
     }
 
