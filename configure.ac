@@ -154,6 +154,7 @@ AC_CONFIG_FILES([Makefile
   src/common/libutil/Makefile
   src/common/librbtree/Makefile
   src/common/libschedutil/Makefile
+  src/common/libeventlog/Makefile
   resource/Makefile
   resource/planner/Makefile
   resource/planner/test/Makefile
