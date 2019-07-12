@@ -27,7 +27,9 @@ extern "C" {
 #include "config.h"
 #endif
 #include <flux/core.h>
+#include <jansson.h>
 #include "src/common/libschedutil/schedutil.h"
+#include "src/common/libeventlog/eventlog.h"
 }
 
 #include "qmanager/policies/base/queue_policy_base.hpp"
@@ -65,11 +67,101 @@ struct qmanager_ctx_t {
  *                                                                            *
  ******************************************************************************/
 
-extern "C" int jobmanager_hello_cb (flux_t *h, const char *R, void *arg)
+static int recover_submitinfo (flux_t *h,
+                               const char *e, uint32_t &u, int &p, double &t)
 {
-    flux_log (h, LOG_INFO, "existing allocation: %s", R);
+    int rc = -1;
+    json_t *a = NULL;
+    json_t *entry = NULL;
+    const char *name = NULL;
+    json_t *context = NULL;
 
-    return 0;
+    if (!(a = eventlog_decode (e))) {
+        flux_log_error (h, "%s: eventlog_decode", __FUNCTION__);
+        goto out;
+    }
+    if (!(entry = json_array_get (a, 0))) {
+        errno = EINVAL;
+        flux_log_error (h, "%s: json_array_get", __FUNCTION__);
+        goto out;
+    }
+    if (eventlog_entry_parse (entry, &t, &name, &context) < 0) {
+        flux_log_error (h, "%s: eventlog_entry_parse", __FUNCTION__);
+        goto out;
+    }
+    if (name != std::string ("submit") || !context) {
+        errno = ENOENT;
+        flux_log_error (h, "%s: invalid event", __FUNCTION__);
+        goto out;
+    }
+    if (json_unpack (context, "{s:i s:i}", "userid", &u, "priority", &p) < 0) {
+        errno = ENOENT;
+        flux_log_error (h, "%s: json_unpack", __FUNCTION__);
+        goto out;
+    }
+    rc = 0;
+
+out:
+    json_decref (a);
+    return rc;
+}
+
+static std::shared_ptr<job_t> recover_jobinfo (flux_t *h, flux_jobid_t id,
+                                               const char *R)
+{
+    int prio = 0;
+    double ts = 0;
+    uint32_t uid = 0;
+    char path[64] = {'\0'};
+    flux_future_t *f = NULL;
+    const char *eventlog = NULL;
+    std::shared_ptr<job_t> job = nullptr;
+
+    if (flux_job_kvs_key (path, sizeof (path), id, "eventlog") < 0) {
+        flux_log_error (h, "%s: flux_job_kvs_key", __FUNCTION__);
+        goto out;
+    }
+    if (!(f = flux_kvs_lookup (h, NULL, 0, path))) {
+        flux_log_error (h, "%s: flux_kvs_lookup", __FUNCTION__);
+        goto out;
+    }
+    if (flux_kvs_lookup_get (f, &eventlog) < 0) {
+        flux_log_error (h, "%s: flux_kvs_lookup_get_unpack", __FUNCTION__);
+        goto out;
+    }
+    if (recover_submitinfo (h, eventlog, uid, prio, ts) < 0) {
+        flux_log_error (h, "%s: recover_submitinfo", __FUNCTION__);
+        goto out;
+    }
+    job = std::make_shared<job_t> (job_state_kind_t::
+                                   RUNNING, id, uid, prio, ts, R);
+
+out:
+    flux_future_destroy (f);
+    return job;
+}
+
+// FIXME: This will be expanded when we implement full scheduler
+// resilency schemes: Issue #470.
+extern "C" int jobmanager_hello_cb (flux_t *h,
+                                    flux_jobid_t id, const char *R, void *arg)
+{
+    int rc = -1;
+    qmanager_ctx_t *ctx = (qmanager_ctx_t *)arg;
+    std::shared_ptr<job_t> running_job;
+    if ((running_job = recover_jobinfo (h, id, R)) == nullptr) {
+        flux_log_error (h, "%s: recover_jobinfo", __FUNCTION__);
+        goto out;
+    }
+    if (ctx->queue->reconstruct (running_job) < 0) {
+        flux_log_error (h, "%s: reconstruct (jobid=%ju)",
+                        __FUNCTION__, (intmax_t)running_job->id);
+        goto out;
+    }
+    rc = 0;
+
+out:
+    return rc;
 }
 
 extern "C" void jobmanager_alloc_cb (flux_t *h, const flux_msg_t *msg,
@@ -128,9 +220,8 @@ extern "C" void jobmanager_free_cb (flux_t *h, const flux_msg_t *msg,
                         __FUNCTION__);
         return;
     }
-    if ((job = ctx->queue->remove (id)) == nullptr) {
-        flux_log_error (h, "%s: remove", __FUNCTION__);
-    }
+    if ((ctx->queue->remove (id)) < 0)
+        flux_log_error (h, "%s: remove job (%ju)", __FUNCTION__, (intmax_t)id);
     if (ctx->queue->run_sched_loop ((void *)ctx->h, true) < 0) {
         // TODO: Need to tighten up anomalous conditions
         // returned with a negative return code
@@ -155,18 +246,18 @@ extern "C" void jobmanager_free_cb (flux_t *h, const flux_msg_t *msg,
 static void jobmanager_exception_cb (flux_t *h, flux_jobid_t id,
                                      const char *t, int s, void *a)
 {
-    if (s > 0)
-        return;
-
     std::shared_ptr<job_t> job;
     qmanager_ctx_t *ctx = (qmanager_ctx_t *)a;
-    std::string note = std::string ("alloc aborted due to exception type=") + t;
-    if ((job = ctx->queue->remove (id)) == nullptr) {
-        flux_log_error (h, "%s: remove", __FUNCTION__);
+
+    if (s > 0 || (job = ctx->queue->lookup (id)) == nullptr
+        || !job->is_pending ())
+        return;
+    if (ctx->queue->remove (id) < 0) {
+        flux_log_error (h, "%s: remove job (%ju)", __FUNCTION__, (intmax_t)id);
         return;
     }
-    if (job->state == job_state_kind_t::PENDING
-        && schedutil_alloc_respond_denied (h, job->msg, note.c_str ()) < 0) {
+    std::string note = std::string ("alloc aborted due to exception type=") + t;
+    if (schedutil_alloc_respond_denied (h, job->msg, note.c_str ()) < 0) {
         flux_log_error (h, "%s: schedutil_alloc_respond_denied", __FUNCTION__);
     }
 }
@@ -230,6 +321,13 @@ int enforce_queue_policy (qmanager_ctx_t *ctx)
         flux_log_error (ctx->h, "%s: queue->apply_params", __FUNCTION__);
         goto out;
     }
+    if (!(ctx->ops = schedutil_ops_register (ctx->h,
+                                             jobmanager_alloc_cb,
+                                             jobmanager_free_cb,
+                                             jobmanager_exception_cb, ctx))) {
+        flux_log_error (ctx->h, "%s: schedutil_ops_register", __FUNCTION__);
+        goto out;
+    }
     if (schedutil_hello (ctx->h, jobmanager_hello_cb, ctx) < 0) {
         flux_log_error (ctx->h, "%s: schedutil_hello", __FUNCTION__);
         goto out;
@@ -238,13 +336,6 @@ int enforce_queue_policy (qmanager_ctx_t *ctx)
         jm_mode = "unlimited";
     if (schedutil_ready (ctx->h, jm_mode, &queue_depth)) {
         flux_log_error (ctx->h, "%s: schedutil_ready", __FUNCTION__);
-        goto out;
-    }
-    if (!(ctx->ops = schedutil_ops_register (ctx->h,
-                                             jobmanager_alloc_cb,
-                                             jobmanager_free_cb,
-                                             jobmanager_exception_cb, ctx))) {
-        flux_log_error (ctx->h, "%s: schedutil_ops_register", __FUNCTION__);
         goto out;
     }
     rc = 0;

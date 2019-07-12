@@ -31,7 +31,7 @@ static int schedutil_hello_job (flux_t *h, flux_jobid_t id,
         return -1;
     if (flux_kvs_lookup_get (f, &s) < 0)
         goto error;
-    if (cb (h, s, arg) < 0)
+    if (cb (h, id, s, arg) < 0)
         goto error;
     flux_future_destroy (f);
     return 0;

@@ -42,6 +42,7 @@ qmanager_la_CXXFLAGS = \
 
 qmanager_la_LIBADD = \
     $(top_builddir)/src/common/libschedutil/libschedutil.la \
+    $(top_builddir)/src/common/libeventlog/libeventlog.la \
     $(FLUX_CORE_LIBS) \
     $(CZMQ_LIBS) \
     $(JANSSON_LIBS)

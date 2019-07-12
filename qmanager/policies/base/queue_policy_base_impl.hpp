@@ -99,9 +99,19 @@ int queue_policy_base_t::insert (std::shared_ptr<job_t> job)
     return detail::queue_policy_base_impl_t::insert (job);
 }
 
-std::shared_ptr<job_t> queue_policy_base_t::remove (flux_jobid_t id)
+int queue_policy_base_t::remove (flux_jobid_t id)
 {
     return detail::queue_policy_base_impl_t::remove (id);
+}
+
+const std::shared_ptr<job_t> queue_policy_base_t::lookup (flux_jobid_t id)
+{
+    return detail::queue_policy_base_impl_t::lookup (id);
+}
+
+int queue_policy_base_t::reconstruct (std::shared_ptr<job_t> running_job)
+{
+    return detail::queue_policy_base_impl_t::reconstruct (running_job);
 }
 
 std::shared_ptr<job_t> queue_policy_base_t::pending_pop ()
@@ -139,8 +149,9 @@ out:
     return rc;
 }
 
-std::shared_ptr<job_t> queue_policy_base_impl_t::remove (flux_jobid_t id)
+int queue_policy_base_impl_t::remove (flux_jobid_t id)
 {
+    int rc = -1;
     std::shared_ptr<job_t> job = nullptr;
 
     if (m_jobs.find (id) == m_jobs.end ()) {
@@ -168,10 +179,37 @@ std::shared_ptr<job_t> queue_policy_base_impl_t::remove (flux_jobid_t id)
     default:
         break;
     }
+    rc = 0;
 out:
-    return job;
+    return rc;
 }
 
+const std::shared_ptr<job_t> queue_policy_base_impl_t::lookup (flux_jobid_t id)
+{
+    std::shared_ptr<job_t> job = nullptr;
+    if (m_jobs.find (id) == m_jobs.end ()) {
+        errno = ENOENT;
+        return job;
+    }
+    return m_jobs[id];
+}
+
+int queue_policy_base_impl_t::reconstruct (std::shared_ptr<job_t> job)
+{
+    int rc = -1;
+    if (job == nullptr || m_jobs.find (job->id) != m_jobs.end ()) {
+        errno = EINVAL;
+        goto out;
+    }
+    job->t_stamps.running_ts = m_rq_cnt++;
+    m_running.insert (std::pair<uint64_t, flux_jobid_t>(job->t_stamps.running_ts,
+                                                        job->id));
+    m_jobs.insert (std::pair<flux_jobid_t, std::shared_ptr<job_t>> (job->id,
+                                                                    job));
+    rc = 0;
+out:
+    return rc;
+}
 
 std::map<uint64_t, flux_jobid_t>::iterator queue_policy_base_impl_t::
     to_running (std::map<uint64_t, flux_jobid_t>::iterator pending_iter,
