@@ -8,13 +8,15 @@
 #include <cmath>
 #include "planner.h"
 
-#define OPTIONS "L:d:D:w:q:"
+#define OPTIONS "L:d:D:w:q:r:s:"
 static const struct option longopts[] = {
     {"load",                           required_argument,  0, 'L'},
     {"--load-duration_granule",        required_argument,  0, 'd'},
     {"--query-duration_gran-query",    required_argument,  0, 'D'},
     {"--walltime-max",                 required_argument,  0, 'w'},
     {"--query-count",                  required_argument,  0, 'q'},
+    {"--query-repeat",                 required_argument,  0, 'r'},
+    {"--stride",                       required_argument,  0, 's'},
     { 0, 0, 0, 0 },
 };
 
@@ -337,7 +339,7 @@ int run_one_experiment (int n_pjobs, int n_queries, int p_dur_gran,
                               n_queries, reqs1, times1, durs1);
     nyes = performance_sat_during (p, reqs1, times1, durs1, e.sat_during);
     std::cout << "Num of yes: " << nyes << std::endl;
-    std::cout << "Num of no: " << n_pjobs - nyes << std::endl;
+    std::cout << "Num of no: " << n_queries - nyes << std::endl;
     std::cout << "Done!" << std::endl << std::endl;
 
 
@@ -356,7 +358,7 @@ int run_one_experiment (int n_pjobs, int n_queries, int p_dur_gran,
     std::cout << "[performance_earliest_fit <-- pow2 Req + Uniform duration]" << std::endl;
     req_pow_duration_uniform (2, 7, scaled_tm, walltime_max, q_dur_gran,
                               n_queries, reqs3, times3, durs3);
-    performance_earliest_fit (p, reqs2, durs2, e.earliest_during);
+    performance_earliest_fit (p, reqs3, durs3, e.earliest_during);
     std::cout << "Done!" << std::endl << std::endl;
 
     planner_destroy (&p);
@@ -365,11 +367,11 @@ int run_one_experiment (int n_pjobs, int n_queries, int p_dur_gran,
 
 void do_format (std::map<int, std::vector<experiment_t>> &imap)
 {
-    std::cout << std::setw(15) << "Load"
-             << std::setw(15) << "SatAt"
-             << std::setw(15) << "SatDuring"
-             << std::setw(15) << "EarliestAt"
-             << std::setw(15) << "SatDuring" << std::endl;
+    std::cout << std::setw(20) << "Load"
+             << std::setw(20) << "SatAt"
+             << std::setw(20) << "SatDuring"
+             << std::setw(20) << "EarliestAt"
+             << std::setw(20) << "SatDuring" << std::endl;
 
     for (auto &l : imap) {
         double best_sat_at = 999999999.9;
@@ -382,12 +384,18 @@ void do_format (std::map<int, std::vector<experiment_t>> &imap)
             if (best_earliest_at > p.earliest_at.avg) best_earliest_at = p.earliest_at.avg;
             if (best_earliest_during > p.earliest_during.avg) best_earliest_during = p.earliest_during.avg;
         }
-        std::cout << std::setw(15) << l.first        
-                  << std::setw(15) << std::fixed << best_sat_at * 1000000.0
-                  << std::setw(15) << best_sat_during * 1000000.0
-                  << std::setw(15) << best_earliest_at * 1000000.0
-                  << std::setw(15) << best_earliest_during * 1000000.0 << std::endl;
-    } 
+        std::cout << std::fixed;
+        //std::cout << std::setw(15) << l.first
+        //          << std::setw(15) << std::fixed << std::setprecision(10) << best_sat_at * 1000000.0
+        //          << std::setw(15) << best_sat_during * 1000000.0
+        //          << std::setw(15) << best_earliest_at * 1000000.0
+        //          << std::setw(15) << best_earliest_during * 1000000.0 << std::endl;
+        std::cout << std::setw(20) << l.first
+                  << std::setw(20) << std::setprecision(11) << best_sat_at * 1000000.0
+                  << std::setw(20) << std::setprecision(11) << best_sat_during * 1000000.0
+                  << std::setw(20) << std::setprecision(11) << best_earliest_at * 1000000.0
+                  << std::setw(20) << std::setprecision(11) << best_earliest_during * 1000000.0 << std::endl;
+    }
 }
 
 int main (int argc, char *argv[])
@@ -397,6 +405,8 @@ int main (int argc, char *argv[])
     int p_dur_gran = 1800;
     int q_dur_gran = 1800;
     int walltime_max = 24;
+    int n_repeats = 1;
+    int stride = 10;
     int ch = 0;
     int i, j;
     std::map<int, std::vector<experiment_t>> imap;
@@ -418,24 +428,30 @@ int main (int argc, char *argv[])
         case 'q': // --query-count
             n_queries = atoi (optarg);
             break;
+        case 'r': // --n_repeats
+            n_repeats = atoi (optarg);
+            break;
+        case 's': // --stride
+            stride = atoi (optarg);
+            break;
         default:
             break;
             exit (1);
-        } 
+        }
     }
 
     if (optind != argc) {
-        std::cerr << "[Err] Incorrect commandline" << std::endl; 
+        std::cerr << "[Err] Incorrect commandline" << std::endl;
         exit (1);
     }
 
-    for (i = 10; i <= n_pjobs; i *= 10) {
-        std::cout << "********************* Starting Load " << i << " *********************" << std::endl << std::endl; 
+    for (i = 1; i <= n_pjobs; i *= stride) {
+        std::cout << "********************* Starting Load " << i << " *********************" << std::endl << std::endl;
         std::vector<experiment_t> expV;
-        for (j = 0; j < 3; j++) {
+        for (j = 0; j < n_repeats; j++) {
             experiment_t e;
-            std::cout << "--------------------- Iter " << j << "------------------------" << std::endl << std::endl; 
-            if (run_one_experiment (n_pjobs, n_queries, p_dur_gran,
+            std::cout << "--------------------- Iter " << j << "------------------------" << std::endl << std::endl;
+            if (run_one_experiment (i, n_queries, p_dur_gran,
                                     q_dur_gran, walltime_max, e) < 0) {
                 std::cerr << "[Err] run_one_experiment failed" << std::endl;
             }
