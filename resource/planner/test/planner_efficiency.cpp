@@ -8,7 +8,7 @@
 #include <cmath>
 #include "planner.h"
 
-#define OPTIONS "L:d:D:w:q:r:s:"
+#define OPTIONS "L:d:D:w:q:r:s:b:"
 static const struct option longopts[] = {
     {"load",                           required_argument,  0, 'L'},
     {"--load-duration_granule",        required_argument,  0, 'd'},
@@ -17,6 +17,7 @@ static const struct option longopts[] = {
     {"--query-count",                  required_argument,  0, 'q'},
     {"--query-repeat",                 required_argument,  0, 'r'},
     {"--stride",                       required_argument,  0, 's'},
+    {"--begin-load",                   required_argument,  0, 'b'},
     { 0, 0, 0, 0 },
 };
 
@@ -280,13 +281,49 @@ int performance_earliest_fit (planner_t *planner,
         return -1;
     }
 
+    restore_track_points (planner);
     for (i = 0; i < reqs.size (); i++) {
         gettimeofday (&begin, NULL);
-        if ((rc = planner_avail_time_first (planner, 0, durs[i], reqs[i])) < 0) {
-            std::cout << "[Error] " << "planner_avail_time_first" << std::endl;
+        if ((rc = planner_avail_earliest_time (planner, reqs[i])) < 0) {
+            std::cout << "[Error] " << "planner_avail_earliest_time" << std::endl;
             return -1;
         }
         gettimeofday (&end, NULL);
+        elapse = ((double)end.tv_sec + (double)end.tv_usec/1000000.0)
+                 - ((double)begin.tv_sec + (double)begin.tv_usec/1000000.0);
+        min = (elapse < min)? elapse : min;
+        max = (elapse > max)? elapse : max;
+        accm += elapse;
+    }
+
+    log_perf (min, max, accm / (double)reqs.size (), perf);
+    return 0;
+}
+
+int performance_earliest_fit_during (planner_t *planner,
+                                     std::vector<uint64_t> &reqs,
+                                     std::vector<uint64_t> &durs,
+                                     perf_t &perf)
+{
+    int i = 0;
+    int64_t rc;
+    double min = 9999999.9f, max = 0.0f, accm = 0.0f, elapse = 0.0f;
+    struct timeval begin, end;
+
+    if (!planner || reqs.empty () || durs.empty () || reqs.size () != durs.size ()) {
+        std::cout << "[Error] Args for " << __FUNCTION__ << std::endl;
+        return -1;
+    }
+
+    restore_track_points (planner);
+    for (i = 0; i < reqs.size (); i++) {
+        gettimeofday (&begin, NULL);
+        if ((rc = planner_avail_time_first (planner, 0, reqs[i], durs[i])) < 0) {
+            std::cout << "[Error] " << "planner_avail_earliest_time" << std::endl;
+            return -1;
+        }
+        gettimeofday (&end, NULL);
+        restore_track_points (planner);
         elapse = ((double)end.tv_sec + (double)end.tv_usec/1000000.0)
                  - ((double)begin.tv_sec + (double)begin.tv_usec/1000000.0);
         min = (elapse < min)? elapse : min;
@@ -330,7 +367,6 @@ int run_one_experiment (int n_pjobs, int n_queries, int p_dur_gran,
     std::cout << "Num of no: " << n_queries - nyes << std::endl;
     std::cout << "Done!" << std::endl << std::endl;
 
-
     /*
      * 2) performance_sat_during
      */
@@ -342,27 +378,29 @@ int run_one_experiment (int n_pjobs, int n_queries, int p_dur_gran,
     std::cout << "Num of no: " << n_queries - nyes << std::endl;
     std::cout << "Done!" << std::endl << std::endl;
 
-
     /*
      * 3) performance_earliest_fit
      */
     std::cout << "[performance_earliest_fit <-- pow2 Req + Unit duration]" << std::endl;
     req_pow_duration_1sec (2, 7, 1000000, reqs2, durs2);
+    std::cout << "*******" << durs2[100] << std::endl;
+    print_hist (durs2);
     performance_earliest_fit (p, reqs2, durs2, e.earliest_at);
     std::cout << "Done!" << std::endl << std::endl;
 
-
+#if 0
     /*
      * 4) performance_earliest_fit
      */
     std::cout << "[performance_earliest_fit <-- pow2 Req + Uniform duration]" << std::endl;
     req_pow_duration_uniform (2, 7, scaled_tm, walltime_max, q_dur_gran,
                               n_queries, reqs3, times3, durs3);
-    performance_earliest_fit (p, reqs3, durs3, e.earliest_during);
+    performance_earliest_fit_during (p, reqs3, durs3, e.earliest_during);
     std::cout << "Done!" << std::endl << std::endl;
 
     planner_destroy (&p);
     return 0;
+#endif
 }
 
 void do_format (std::map<int, std::vector<experiment_t>> &imap)
@@ -371,7 +409,7 @@ void do_format (std::map<int, std::vector<experiment_t>> &imap)
              << std::setw(20) << "SatAt"
              << std::setw(20) << "SatDuring"
              << std::setw(20) << "EarliestAt"
-             << std::setw(20) << "SatDuring" << std::endl;
+             << std::setw(20) << "EarliestDuring" << std::endl;
 
     for (auto &l : imap) {
         double best_sat_at = 999999999.9;
@@ -407,6 +445,7 @@ int main (int argc, char *argv[])
     int walltime_max = 24;
     int n_repeats = 1;
     int stride = 10;
+    int begin = 1;
     int ch = 0;
     int i, j;
     std::map<int, std::vector<experiment_t>> imap;
@@ -434,6 +473,9 @@ int main (int argc, char *argv[])
         case 's': // --stride
             stride = atoi (optarg);
             break;
+        case 'b': // --begin-load
+            begin = atoi (optarg);
+            break;
         default:
             break;
             exit (1);
@@ -445,7 +487,7 @@ int main (int argc, char *argv[])
         exit (1);
     }
 
-    for (i = 1; i <= n_pjobs; i *= stride) {
+    for (i = begin; i <= n_pjobs; i *= stride) {
         std::cout << "********************* Starting Load " << i << " *********************" << std::endl << std::endl;
         std::vector<experiment_t> expV;
         for (j = 0; j < n_repeats; j++) {

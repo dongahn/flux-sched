@@ -105,6 +105,9 @@ const char *planner_resource_type (planner_t *ctx);
 int64_t planner_avail_time_first (planner_t *ctx, int64_t on_or_after,
                                   uint64_t duration, uint64_t request);
 
+int64_t planner_avail_earliest_time (planner_t *ctx, uint64_t request);
+void restore_track_points (planner_t *ctx);
+
 /*! Find and return the next earliest point in time at which the same request
  *  queried before via either planner_avail_time_first or
  *  planner_avail_time_next can be satisfied.  Same semantics as

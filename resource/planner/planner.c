@@ -377,7 +377,7 @@ static int track_points (zhashx_t *tracker, scheduled_point_t *point)
     return zhashx_insert (tracker, key, point);
 }
 
-static void restore_track_points (planner_t *ctx)
+void restore_track_points (planner_t *ctx)
 {
     scheduled_point_t *point = NULL;
     struct rb_root *root = &(ctx->mt_resource_tree);
@@ -491,6 +491,10 @@ static bool span_ok (planner_t *ctx, scheduled_point_t *start_point,
              ok = true;
              break;
          } else if (request > next_point->remaining) {
+            static int b = 0;
+            b++;
+            if (b < 10)
+                printf ("span not ok! start (%jd), next (%jd), duration (%jd) \n", start_point->at, next_point->at, duration);
              mintime_resource_remove (start_point, mtrt);
              track_points (ctx->avail_time_iter, start_point);
              ok = false;
@@ -520,6 +524,11 @@ static int64_t avail_at (planner_t *ctx, int64_t on_or_after, uint64_t duration,
             if ((at + duration) > ctx->plan_end)
                 at = -1;
             break;
+        } else {
+            static int s = 0;
+            s++;
+            if (s < 10)
+                printf ("span not ok!");
         }
     }
     return at;
@@ -779,6 +788,14 @@ int64_t planner_avail_time_first (planner_t *ctx, int64_t on_or_after,
     if ( (t = avail_at (ctx, on_or_after, duration, (int64_t)request)) == -1)
         errno = ENOENT;
     return t;
+}
+
+int64_t planner_avail_earliest_time (planner_t *ctx, uint64_t request)
+{
+    scheduled_point_t *start_point = NULL;
+    struct rb_root *mt = &(ctx->mt_resource_tree);
+    start_point = mintime_resource_mintime (request, mt);
+    return start_point->at;
 }
 
 int64_t planner_avail_time_next (planner_t *ctx)
