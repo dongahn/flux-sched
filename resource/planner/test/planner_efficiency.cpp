@@ -176,6 +176,8 @@ int prepopulate_scheduled_points (planner_t *planner, unsigned req_cnt,
 
     for (i = 0; i < req_cnt; i++) {
         int64_t t = planner_avail_time_first (planner, 0, durs[i], reqs[i]);
+        if (t < 0)
+            std::cerr << "[Err] planner_avail_time_first in " << __FUNCTION__;
         planner_add_span (planner, t, durs[i], reqs[i]);
         plan_end = (plan_end < (t + durs[i]))? (t + durs[i]) : plan_end;
 #if 0
@@ -318,8 +320,8 @@ int performance_earliest_fit_during (planner_t *planner,
     restore_track_points (planner);
     for (i = 0; i < reqs.size (); i++) {
         gettimeofday (&begin, NULL);
-        if ((rc = planner_avail_time_first (planner, 0, reqs[i], durs[i])) < 0) {
-            std::cout << "[Error] " << "planner_avail_earliest_time" << std::endl;
+        if ((rc = planner_avail_time_first (planner, 0, durs[i], reqs[i])) < 0) {
+            std::cout << "[Error] " << "planner_avail_time_first" << std::endl;
             return -1;
         }
         gettimeofday (&end, NULL);
@@ -388,19 +390,19 @@ int run_one_experiment (int n_pjobs, int n_queries, int p_dur_gran,
     performance_earliest_fit (p, reqs2, durs2, e.earliest_at);
     std::cout << "Done!" << std::endl << std::endl;
 
-#if 0
     /*
      * 4) performance_earliest_fit
      */
     std::cout << "[performance_earliest_fit <-- pow2 Req + Uniform duration]" << std::endl;
     req_pow_duration_uniform (2, 7, scaled_tm, walltime_max, q_dur_gran,
                               n_queries, reqs3, times3, durs3);
+    print_hist (reqs3);
+    print_hist (durs3);
     performance_earliest_fit_during (p, reqs3, durs3, e.earliest_during);
     std::cout << "Done!" << std::endl << std::endl;
 
     planner_destroy (&p);
     return 0;
-#endif
 }
 
 void do_format (std::map<int, std::vector<experiment_t>> &imap)

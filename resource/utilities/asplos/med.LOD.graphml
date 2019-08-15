@@ -107,26 +107,26 @@
         </node>
 
         <edge id="cluster2rack" source="cluster" target="rack">
-            <data key="multi_scale">4</data>
+            <data key="multi_scale">56</data>
         </edge>
         <edge id="rack2node" source="rack" target="node">
             <data key="id_scope">1</data>
-            <data key="multi_scale">56</data>
+            <data key="multi_scale">18</data>
         </edge>
         <edge id="node2core" source="node" target="core">
-            <data key="id_scope">1</data>
+            <data key="id_scope">0</data>
             <data key="multi_scale">40</data>
         </edge>
         <edge id="node2gpu" source="node" target="gpu">
-            <data key="id_scope">1</data>
+            <data key="id_scope">0</data>
             <data key="multi_scale">4</data>
         </edge>
         <edge id="node2memory" source="node" target="memory">
-            <data key="id_scope">1</data>
+            <data key="id_scope">0</data>
             <data key="multi_scale">8</data>
         </edge>
 	<edge id="node2bb" source="node" target="bb">
-            <data key="id_scope">1</data>
+            <data key="id_scope">0</data>
             <data key="multi_scale">8</data>
         </edge>
     </graph>

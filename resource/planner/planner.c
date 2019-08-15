@@ -491,10 +491,6 @@ static bool span_ok (planner_t *ctx, scheduled_point_t *start_point,
              ok = true;
              break;
          } else if (request > next_point->remaining) {
-            static int b = 0;
-            b++;
-            if (b < 10)
-                printf ("span not ok! start (%jd), next (%jd), duration (%jd) \n", start_point->at, next_point->at, duration);
              mintime_resource_remove (start_point, mtrt);
              track_points (ctx->avail_time_iter, start_point);
              ok = false;
@@ -524,11 +520,6 @@ static int64_t avail_at (planner_t *ctx, int64_t on_or_after, uint64_t duration,
             if ((at + duration) > ctx->plan_end)
                 at = -1;
             break;
-        } else {
-            static int s = 0;
-            s++;
-            if (s < 10)
-                printf ("span not ok!");
         }
     }
     return at;
