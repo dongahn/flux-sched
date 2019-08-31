@@ -128,8 +128,9 @@ dump_output() {
     else
         if [ ${pref} != ${top_prefix} ]
         then
-            #flux kvs put -j "tree-perf"="${blurb}"
-            echo ${blurb} > ${pref}.out
+            FLUX_KVS_NAMESPACE=$(flux getattr parent-kvs-namespace) \
+            FLUX_URI=$(flux getattr parent-uri) \
+            flux kvs put -j "tree-perf"="${blurb}"
         fi
     fi
 }
@@ -339,6 +340,7 @@ internal() {
     local nx_queue_p=$(next_policy ${queue})
     local nx_match_p=$(next_policy ${match})
     local flogopt=""
+    local jobid=""
     declare -a jobids
     nx=${nx:+"-T ${nx}"}
     nx=${nx:-"-leaf"}
@@ -368,7 +370,7 @@ internal() {
 flux start ${flogopt} flux tree -N ${my_nodes} -C ${my_cores} ${nx} \
 ${nx_match_p} ${nx_queue_p} -X ${pref}.${rank} ${script} -J ${my_njobs} \
 ${flogopt:+"-f"} | flux job submit -`
-        jobids+=(${jobid})
+        jobids[${rank}]=${jobid}
     done
     flux job drain
     local end=$(date +%s.%N)
@@ -378,9 +380,11 @@ ${flogopt:+"-f"} | flux job submit -`
 
     local blurb="$(json ${pref} ${njobs} ${nnodes} ${ncores} ${begin} ${end})"
     local child=""
+    local kvspath=""
     for rank in `seq 1 ${size}`;
     do
-        child=$(cat ${pref}.${rank}.out)
+        kvspath=$(flux job id --from=dec --to=kvs ${jobids[${rank}]})
+        child=$(flux kvs get -j ${kvspath}.guest.tree-perf)
         rm -f ${pref}.${rank}.out
         blurb=$(echo "${blurb}" | jq " .child += [${child}]")
     done
