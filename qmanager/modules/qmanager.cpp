@@ -264,12 +264,12 @@ static int enforce_queue_policy (qmanager_ctx_t *ctx)
         goto out;
     }
     if (ctx->args.policy_params != ""
-        && ctx->queue->set_params (ctx->args.policy_params) < 0) {
+        && ctx->queue->set_policy_params (ctx->args.policy_params) < 0) {
         flux_log_error (ctx->h, "%s: queue->set_params", __FUNCTION__);
         goto out;
     }
     if (ctx->args.queue_params != ""
-        && ctx->queue->set_params (ctx->args.queue_params) < 0) {
+        && ctx->queue->set_queue_params (ctx->args.queue_params) < 0) {
         flux_log_error (ctx->h, "%s: queue->set_params", __FUNCTION__);
         goto out;
     }

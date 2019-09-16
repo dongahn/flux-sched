@@ -50,14 +50,14 @@ int queue_policy_hybrid_t<reapi_type>::apply_params ()
     int rc = -1;
     try {
         std::unordered_map<std::string, std::string>::const_iterator i;
-        if ((i = queue_policy_base_impl_t::m_params.find ("queue-depth"))
-             != queue_policy_base_impl_t::m_params.end ()) {
+        if ((i = queue_policy_base_impl_t::m_qparams.find ("queue-depth"))
+             != queue_policy_base_impl_t::m_qparams.end ()) {
             unsigned int depth = std::stoi (i->second);
             if (depth < MAX_QUEUE_DEPTH)
                 queue_policy_base_impl_t::m_queue_depth = depth;
         }
-        if ((i = queue_policy_base_impl_t::m_params.find ("reservation-depth"))
-             != queue_policy_base_impl_t::m_params.end ()) {
+        if ((i = queue_policy_base_impl_t::m_pparams.find ("reservation-depth"))
+             != queue_policy_base_impl_t::m_pparams.end ()) {
             unsigned int depth = std::stoi (i->second);
             if (depth < MAX_RESERVATION_DEPTH)
                 queue_policy_bf_base_t<reapi_type>::m_reservation_depth = depth;
