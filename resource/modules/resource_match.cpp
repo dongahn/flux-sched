@@ -634,9 +634,13 @@ static int run_remove (resource_ctx_t *ctx, int64_t jobid)
 
     if ((rc = tr.remove (jobid)) < 0) {
         if (is_existent_jobid (ctx, jobid)) {
-           // When this condition arises, we will be less likley
-           // reuse this jobid. Having the errored job in the
-           // jobs map prevent us from reusing the jobid up front.
+           // When this condition arises, we will be less likely
+           // to be able to reuse this jobid. Having the errored job
+           // in the jobs map will prevent us from reusing the jobid
+           // up front.  Note that a same jobid can be reserved and
+           // removed multiple times by the upper queuing layer
+           // as part of providing advanced queueing policies
+           // (e.g., conservative backfill).
            job_info_t *info = ctx->jobs[jobid];
            info->state = job_lifecycle_t::ERROR;
         }
