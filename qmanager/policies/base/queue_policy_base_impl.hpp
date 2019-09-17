@@ -105,7 +105,23 @@ int queue_policy_base_t::set_policy_params (const std::string &params)
 
 int queue_policy_base_t::apply_params ()
 {
-    return 0;
+    int rc = 0;
+    try {
+        std::unordered_map<std::string, std::string>::const_iterator i;
+        if ((i = queue_policy_base_impl_t::m_qparams.find ("queue-depth"))
+             != queue_policy_base_impl_t::m_qparams.end ()) {
+            unsigned int depth = std::stoi (i->second);
+            if (depth < MAX_QUEUE_DEPTH)
+                queue_policy_base_impl_t::m_queue_depth = depth;
+        }
+    } catch (const std::invalid_argument &e) {
+        rc = -1;
+        errno = EINVAL;
+    } catch (const std::out_of_range &e) {
+        rc = -1;
+        errno = ERANGE;
+    }
+    return rc;
 }
 
 int queue_policy_base_t::insert (std::shared_ptr<job_t> job)

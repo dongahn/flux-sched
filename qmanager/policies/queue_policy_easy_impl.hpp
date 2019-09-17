@@ -40,22 +40,7 @@ queue_policy_easy_t<reapi_type>::~queue_policy_easy_t ()
 template<class reapi_type>
 int queue_policy_easy_t<reapi_type>::apply_params ()
 {
-    int rc = -1;
-    try {
-        std::unordered_map<std::string, std::string>::const_iterator i;
-        if ((i = queue_policy_base_impl_t::m_qparams.find ("queue-depth"))
-             != queue_policy_base_impl_t::m_qparams.end ()) {
-            unsigned int depth = std::stoi (i->second);
-            if (depth < MAX_QUEUE_DEPTH)
-                queue_policy_base_impl_t::m_queue_depth = depth;
-        }
-        rc = 0;
-    } catch (const std::invalid_argument &e) {
-        errno = EINVAL;
-    } catch (const std::out_of_range &e) {
-        errno = ERANGE;
-    }
-    return rc;
+    return queue_policy_base_t::apply_params ();
 }
 
 template<class reapi_type>
