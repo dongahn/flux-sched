@@ -200,6 +200,16 @@ int queue_policy_base_t::remove (flux_jobid_t id)
     return detail::queue_policy_base_impl_t::remove (id);
 }
 
+bool queue_policy_base_t::is_schedulable ()
+{
+    return detail::queue_policy_base_impl_t::is_schedulable ();
+}
+
+void queue_policy_base_t::reset_schedulability ()
+{
+    return detail::queue_policy_base_impl_t::reset_schedulability ();
+}
+
 const std::shared_ptr<job_t> queue_policy_base_t::lookup (flux_jobid_t id)
 {
     return detail::queue_policy_base_impl_t::lookup (id);
@@ -292,6 +302,7 @@ int queue_policy_base_impl_t::insert (std::shared_ptr<job_t> job)
          static_cast<double> (job->t_stamps.pending_ts)}, job->id));
     m_jobs.insert (std::pair<flux_jobid_t, std::shared_ptr<job_t>> (job->id,
                                                                     job));
+    schedulable = true;
     rc = 0;
 out:
     return rc;
@@ -329,9 +340,21 @@ int queue_policy_base_impl_t::remove (flux_jobid_t id)
     default:
         break;
     }
+
+    schedulable = true;
     rc = 0;
 out:
     return rc;
+}
+
+bool queue_policy_base_impl_t::is_schedulable ()
+{
+    return schedulable;
+}
+
+void queue_policy_base_impl_t::reset_schedulability ()
+{
+    schedulable = false;
 }
 
 const std::shared_ptr<job_t> queue_policy_base_impl_t::lookup (flux_jobid_t id)
@@ -475,7 +498,7 @@ int queue_policy_base_impl_t::pending_reprioritize (flux_jobid_t id,
         errno = EEXIST;
         return -1;
     }
-
+    schedulable = true;
     return 0;
 }
 
