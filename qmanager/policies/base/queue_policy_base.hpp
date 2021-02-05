@@ -115,6 +115,8 @@ public:
     int insert (std::shared_ptr<job_t> job);
     int remove (flux_jobid_t id);
     const std::shared_ptr<job_t> lookup (flux_jobid_t id);
+    bool is_schedulable ();
+    void reset_schedulability ();
 
 protected:
     int reconstruct_queue (std::shared_ptr<job_t> running_job);
@@ -135,6 +137,7 @@ protected:
                  flux_jobid_t>::iterator pending_iter,
         const std::string &note);
 
+    bool schedulable = false;
     uint64_t m_pq_cnt = 0;
     uint64_t m_rq_cnt = 0;
     uint64_t m_dq_cnt = 0;
@@ -241,6 +244,9 @@ public:
     void get_params (std::string &q_p, std::string &p_p);
 
     /*! Append a job into the internal pending-job queue.
+     *  If succeeds, it changes the pending job queue state and thus
+     *  this queue becomes "schedulable": i.e., is_schedulable()
+     *  returns true;
      *
      *  \param pending_job
      *                   a shared pointer pointing to a job_t object.
@@ -251,6 +257,9 @@ public:
 
     /*! Remove a job whose jobid is id from any internal queues
      *  (e.g., pending queue, running queue, and alloced queue.)
+     *  If succeeds, it changes the pending queue or resource
+     *  state. This queue becomes "schedulable" if pending job
+     *  queue is not empty: i.e., is_schedulable() returns true;
      *
      *  \param id        jobid of flux_jobid_t type.
      *  \return          0 on success; -1 on error.
@@ -339,6 +348,22 @@ public:
      *                   on success; nullptr when the queue is empty.
      */
     std::shared_ptr<job_t> complete_pop ();
+
+    /*! Return true if this queue has become schedulable since
+     *  its state had been reset with reset_schedulability ().
+     *  "Being schedulable" means one or more job or resource events
+     *  have occurred such a way that the scheduler should run the
+     *  scheduling loop for the pending jobs: e.g., a new job was
+     *  inserted into the pending job queue or a job was removed from
+     *  the running job queue so that its resource was released.
+     */
+    bool is_schedulable ();
+
+    /*! Reset this queue's schedulability. After this call,
+     *  is_schedulable() will return false until a new job or resource
+     *  event occurs.
+     */
+    void reset_schedulability ();
 
 private:
     int set_params (const std::string &params,
