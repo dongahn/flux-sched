@@ -47,7 +47,7 @@ cmds003="${cmd_dir}/cmds02.in"
 test003_desc="match for a large system with disaggregated resources (pol=high)"
 test_expect_success LONGTEST "${test003_desc}" '
     sed "s~@TEST_SRCDIR@~${SHARNESS_TEST_SRCDIR}~g" ${cmds003} > cmds003 &&
-    ${query} -L ${disag} -S CA -P high -t 003.R.out -r 400000< cmds003 &&
+    ${query} -L ${disag} -S CA -P high -t 003.R.out -r 1000000< cmds003 &&
     test_cmp 003.R.out ${exp_dir}/003.R.out
 '
 
@@ -60,7 +60,7 @@ cmds004="${cmd_dir}/cmds02.in"
 test004_desc="match for a large system with disaggregated resources (pol=low)"
 test_expect_success LONGTEST "${test004_desc}" '
     sed "s~@TEST_SRCDIR@~${SHARNESS_TEST_SRCDIR}~g" ${cmds004} > cmds004 &&
-    ${query} -L ${disag} -S CA -P low -t 004.R.out -r 400000 < cmds004 &&
+    ${query} -L ${disag} -S CA -P low -t 004.R.out -r 1000000 < cmds004 &&
     test_cmp 004.R.out ${exp_dir}/004.R.out
 '
 
