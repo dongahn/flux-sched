@@ -47,6 +47,7 @@ sched_fluxion_qmanager_la_SOURCES = \
     $(top_srcdir)/src/common/c++wrappers/eh_wrapper.hpp
 
 sched_fluxion_qmanager_la_CXXFLAGS = \
+    -Wc,-Xclang,-load,-Xclang,/usr/src/PerfFlowAspect/src/c/weaver/build/weave/libWeavePass.so \
     $(AM_CXXFLAGS) \
     $(FLUX_CORE_CFLAGS) \
     $(FLUX_SCHEDUTIL_CFLAGS)
@@ -56,9 +57,11 @@ sched_fluxion_qmanager_la_LIBADD = \
     $(FLUX_CORE_LIBS) \
     $(FLUX_SCHEDUTIL_LIBS) \
     $(CZMQ_LIBS) \
+    -lperfflow_runtime \
     $(JANSSON_LIBS)
 
 sched_fluxion_qmanager_la_LDFLAGS = \
+    -L/usr/src/PerfFlowAspect/src/c/runtime \
     $(AM_LDFLAGS) \
     $(fluxmod_ldflags) -module
 

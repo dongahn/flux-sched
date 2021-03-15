@@ -46,6 +46,7 @@ public:
                                const std::string &jobspec,
                                const uint64_t jobid, bool &reserved,
                                std::string &R, int64_t &at, double &ov);
+    static int match_allocate_chain (void *h, queue_adapter_base_t *adapter);
     static int update_allocate (void *h, const uint64_t jobid,
                                 const std::string &R, int64_t &at, double &ov,
                                 std::string &R_out);

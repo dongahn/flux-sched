@@ -19,6 +19,7 @@ fluxmod_LTLIBRARIES = sched-fluxion-resource.la
 sched_fluxion_resource_la_SOURCES = \
     resource_match.cpp
 sched_fluxion_resource_la_CXXFLAGS = \
+    -Wc,-Xclang,-load,-Xclang,/usr/src/PerfFlowAspect/src/c/weaver/build/weave/libWeavePass.so \
     $(AM_CXXFLAGS) \
     $(JOBSPEC_CFLAGS) \
     $(FLUX_HOSTLIST_CFLAGS) \
@@ -31,10 +32,12 @@ sched_fluxion_resource_la_LIBADD = \
     $(DL_LIBS) \
     $(HWLOC_LIBS) \
     $(UUID_LIBS) \
+    -lperfflow_runtime \
     $(JANSSON_LIBS) \
     $(CZMQ_LIBS) \
     $(BOOST_LDFLAGS)
 sched_fluxion_resource_la_LDFLAGS = \
+    -L/usr/src/PerfFlowAspect/src/c/runtime \
     $(AM_LDFLAGS) \
     $(fluxmod_ldflags) -module
 

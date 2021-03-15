@@ -32,7 +32,8 @@ namespace queue_manager {
 namespace detail {
 
 template<class reapi_type>
-class queue_policy_fcfs_t : public queue_policy_base_t
+class queue_policy_fcfs_t : public queue_policy_base_t,
+                            public resource_model::queue_adapter_base_t
 {
 public:
     virtual ~queue_policy_fcfs_t ();
@@ -41,9 +42,22 @@ public:
                                       std::string &R_out);
     virtual int apply_params ();
 
+    virtual int handle_match_success (int64_t jobid, const char *status,
+                                      const char *R, int64_t at, double ov);
+    virtual int handle_match_failure (int errcode);
+    virtual bool has_job_to_consider ();
+    virtual bool is_sched_loop_active ();
+    virtual void set_sched_loop_active (bool b);
+    virtual int get_job_info (std::string &jobspec, uint64_t &jobid);
+    virtual bool orelse_reserve ();
+
 private:
     int cancel_completed_jobs (void *h);
     int allocate_jobs (void *h, bool use_alloced_queue);
+    int async_allocate_jobs (void *h, bool use_alloced_queue);
+    bool m_is_sched_loop_active = false;
+    std::map<std::vector<double>, flux_jobid_t>::iterator m_iter;
+    int m_iter_depth = 0;
 };
 
 } // namespace Flux::queue_manager::detail

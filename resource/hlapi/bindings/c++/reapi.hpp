@@ -38,6 +38,16 @@ extern "C" {
 namespace Flux {
 namespace resource_model {
 
+class queue_adapter_base_t {
+public:
+    virtual int handle_match_success (int64_t jobid, const char *status,
+                                      const char *R, int64_t at, double ov) = 0;
+    virtual int handle_match_failure (int errcode) = 0;
+    virtual int get_job_info (std::string &jobspec, uint64_t &jobid) = 0;
+    virtual bool has_job_to_consider () = 0;
+    virtual void set_sched_loop_active (bool b) = 0;
+    virtual bool orelse_reserve () = 0;
+};
 
 /*! High-level resource API base class. Derived classes must implement
  *  the methods.

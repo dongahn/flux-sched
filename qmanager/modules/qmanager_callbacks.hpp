@@ -40,6 +40,7 @@ struct qmanager_cb_ctx_t {
     flux_watcher_t *check{nullptr};
     flux_watcher_t *idle{nullptr};
     bool schedulable{false};
+    bool scheduled{false};
 
     schedutil_t *schedutil{nullptr};
     Flux::opts_manager::optmgr_composer_t<

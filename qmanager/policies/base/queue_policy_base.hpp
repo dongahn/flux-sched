@@ -117,6 +117,8 @@ public:
     const std::shared_ptr<job_t> lookup (flux_jobid_t id);
     bool is_schedulable ();
     void reset_schedulability ();
+    bool is_scheduled ();
+    void reset_scheduled ();
 
 protected:
     int reconstruct_queue (std::shared_ptr<job_t> running_job);
@@ -138,6 +140,7 @@ protected:
         const std::string &note);
 
     bool schedulable = false;
+    bool m_scheduled = false;
     uint64_t m_pq_cnt = 0;
     uint64_t m_rq_cnt = 0;
     uint64_t m_dq_cnt = 0;
@@ -146,6 +149,7 @@ protected:
     unsigned int m_queue_depth = DEFAULT_QUEUE_DEPTH;
     unsigned int m_max_queue_depth = MAX_QUEUE_DEPTH;
     std::map<std::vector<double>, flux_jobid_t> m_pending;
+    std::map<std::vector<double>, flux_jobid_t> m_pending_provisional;
     std::map<uint64_t, flux_jobid_t> m_running;
     std::map<uint64_t, flux_jobid_t> m_alloced;
     std::map<uint64_t, flux_jobid_t> m_complete;
@@ -364,6 +368,9 @@ public:
      *  event occurs.
      */
     void reset_schedulability ();
+
+    bool is_scheduled ();
+    void reset_scheduled ();
 
 private:
     int set_params (const std::string &params,

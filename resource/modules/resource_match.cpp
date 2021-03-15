@@ -1766,6 +1766,7 @@ out:
     return rc;
 }
 
+__attribute__((annotate("@critical_path(flow='inout')")))
 static void match_request_cb (flux_t *h, flux_msg_handler_t *w,
                               const flux_msg_t *msg, void *arg)
 {
