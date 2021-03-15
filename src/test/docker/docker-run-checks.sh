@@ -147,7 +147,7 @@ export chain_lint
 if [[ "$INSTALL_ONLY" == "t" ]]; then
     docker run --rm \
         --workdir=/usr/src \
-        --volume=$TOP:/usr/src \
+        --volume=$TOP/../:/usr/src \
         ${BUILD_IMAGE} \
         sh -c "./autogen.sh &&
                ./configure --prefix=/usr --sysconfdir=/etc \
@@ -161,7 +161,7 @@ if [[ "$INSTALL_ONLY" == "t" ]]; then
 else
     docker run --rm \
         --workdir=/usr/src \
-        --volume=$TOP:/usr/src \
+        --volume=$TOP/../:/usr/src \
         $MOUNT_HOME_ARGS \
         -e CC \
         -e CXX \

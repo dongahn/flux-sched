@@ -14,6 +14,13 @@ RUN sudo apt-get -qq install -y --no-install-recommends \
 	python-yaml \
 	libyaml-cpp-dev
 
+RUN sudo apt-get -qq install -y --no-install-recommends \
+	clang \
+	llvm-dev \
+	bison \
+	flex \
+	cmake
+
 # Add configured user to image with sudo access:
 #
 RUN \
