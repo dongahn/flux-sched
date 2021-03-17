@@ -55,6 +55,7 @@ private:
     int cancel_completed_jobs (void *h);
     int allocate_jobs (void *h, bool use_alloced_queue);
     int async_allocate_jobs (void *h, bool use_alloced_queue);
+    int async_multi_allocate_jobs (void *h, bool use_alloced_queue);
     bool m_is_sched_loop_active = false;
     std::map<std::vector<double>, flux_jobid_t>::iterator m_iter;
     int m_iter_depth = 0;

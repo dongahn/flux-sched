@@ -123,6 +123,67 @@ int queue_policy_fcfs_t<reapi_type>::async_allocate_jobs (void *h,
     return 0;
 }
 
+template<class reapi_type>
+int queue_policy_fcfs_t<reapi_type>::async_multi_allocate_jobs (
+                                         void *h, bool use_alloced_queue)
+{
+    unsigned int i = 0;
+    json_t *jobs = nullptr;
+    std::shared_ptr<job_t> job;
+    std::map<std::vector<double>, flux_jobid_t>::iterator iter;
+
+    // move jobs in m_pending_provisional queue into
+    // m_pending. Note that c++11 doesn't have a clean way
+    // to "move" elements between two std::map objects so
+    // we use copy for the time being.
+    m_pending.insert (m_pending_provisional.begin (),
+                      m_pending_provisional.end ());
+    m_pending_provisional.clear ();
+
+    m_iter = m_pending.begin ();
+    m_iter_depth = 0;
+    iter = m_pending.begin ();
+    if (iter != m_pending.end ()) {
+        if (!(jobs = json_array ())) {
+            errno = ENOMEM;
+            return -1;
+        }
+    } else {
+        return 0;
+    }
+    m_is_sched_loop_active = true;
+
+    while (iter != m_pending.end () && i < m_queue_depth) {
+        json_t *jobdesc;
+        job = m_jobs[iter->second];
+        if ( !(jobdesc = json_pack ("{s:I s:s}",
+                                      "jobid", job->id,
+                                      "jobspec", job->jobspec.c_str ()))) {
+            json_decref (jobs);
+            errno = ENOMEM;
+            m_is_sched_loop_active = false;
+            return -1;
+        }
+        if (json_array_append_new (jobs, jobdesc) < 0) {
+            json_decref (jobs);
+            errno = ENOMEM;
+            m_is_sched_loop_active = false;
+            return -1;
+        }
+        iter++;
+        i++;
+    }
+    char *jobs_str = json_dumps (jobs, JSON_INDENT (0));
+    json_decref (jobs);
+    if (reapi_type::match_allocate_multi_async (h, false, jobs_str, this) < 0) {
+        free (jobs_str);
+        m_is_sched_loop_active = false;
+        return -1;
+    }
+    free (jobs_str);
+    return 0;
+}
+
 
 /******************************************************************************
  *                                                                            *
@@ -152,7 +213,7 @@ int queue_policy_fcfs_t<reapi_type>::run_sched_loop (void *h,
     //std::cout << "run_sched_loop" << std::endl;
     int rc = 0;
     rc = cancel_completed_jobs (h);
-    rc += async_allocate_jobs (h, use_alloced_queue);
+    rc += async_multi_allocate_jobs (h, use_alloced_queue);
     return rc;
 }
 
@@ -197,7 +258,7 @@ int queue_policy_fcfs_t<reapi_type>::handle_match_failure (int errcode)
         errno = EINVAL;
         return -1;
     }
-    if (errcode != EBUSY) {
+    if (errcode != EBUSY && errcode != ENODATA) {
         m_iter = to_rejected (m_iter,
                               (errcode == ENODEV)? "unsatisfiable"
                                                  : "match error");
