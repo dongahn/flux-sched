@@ -1813,6 +1813,7 @@ error:
         flux_log_error (h, "%s: flux_respond_error", __FUNCTION__);
 }
 
+__attribute__((annotate("@critical_path(flow='inout')")))
 static void cancel_request_cb (flux_t *h, flux_msg_handler_t *w,
                                const flux_msg_t *msg, void *arg)
 {

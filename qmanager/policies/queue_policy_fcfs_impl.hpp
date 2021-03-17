@@ -48,7 +48,7 @@ int queue_policy_fcfs_t<reapi_type>::cancel_completed_jobs (void *h)
     // Pop newly completed jobs (e.g., per a free request from job-manager
     // as received by qmanager) to remove them from the resource infrastructure.
     while ((job = complete_pop ()) != nullptr)
-        rc += reapi_type::cancel (h, job->id, true);
+        rc += reapi_type::cancel_async (h, job->id);
     return rc;
 }
 
@@ -100,7 +100,7 @@ template<class reapi_type>
 int queue_policy_fcfs_t<reapi_type>::async_allocate_jobs (void *h,
                                                           bool use_alloced_queue)
 {
-    std::cout << "async_allocate_jobs" << std::endl;
+    //std::cout << "async_allocate_jobs" << std::endl;
     int saved_errno = errno ;
 
     // move jobs in m_pending_provisional queue into
@@ -149,7 +149,7 @@ int queue_policy_fcfs_t<reapi_type>::run_sched_loop (void *h,
 {
     if (m_is_sched_loop_active)
         return 0;
-    std::cout << "run_sched_loop" << std::endl;
+    //std::cout << "run_sched_loop" << std::endl;
     int rc = 0;
     rc = cancel_completed_jobs (h);
     rc += async_allocate_jobs (h, use_alloced_queue);
@@ -170,7 +170,7 @@ int queue_policy_fcfs_t<reapi_type>::handle_match_success (
                                          int64_t jobid, const char *status,
                                          const char *R, int64_t at, double ov)
 {
-    std::cout << "handle_match_success called" << std::endl;
+    //std::cout << "handle_match_success called" << std::endl;
     if (!m_is_sched_loop_active) {
         errno = EINVAL;
         return -1;
@@ -192,7 +192,7 @@ int queue_policy_fcfs_t<reapi_type>::handle_match_success (
 template<class reapi_type>
 int queue_policy_fcfs_t<reapi_type>::handle_match_failure (int errcode)
 {
-    std::cout << "handle_match_failure called" << std::endl;
+    //std::cout << "handle_match_failure called" << std::endl;
     if (!m_is_sched_loop_active) {
         errno = EINVAL;
         return -1;
@@ -215,12 +215,12 @@ int queue_policy_fcfs_t<reapi_type>::get_job_info (std::string &jobspec,
                                                    uint64_t &jobid)
 {
     int rc = 0;
-    std::cout << "get_job_info" << std::endl;
+    //std::cout << "get_job_info" << std::endl;
     if (m_is_sched_loop_active && m_iter != m_pending.end ()) {
         std::shared_ptr<job_t> job = m_jobs[m_iter->second];
         jobspec = job->jobspec;
         jobid = job->id;
-        std::cout << "jobid: " << jobid << std::endl;
+        //std::cout << "jobid: " << jobid << std::endl;
     } else {
         errno = EINVAL;
         rc = -1;
@@ -231,10 +231,10 @@ int queue_policy_fcfs_t<reapi_type>::get_job_info (std::string &jobspec,
 template<class reapi_type>
 bool queue_policy_fcfs_t<reapi_type>::has_job_to_consider ()
 {
-    std::cout << "has_job_to_consider" << std::endl;
+    //std::cout << "has_job_to_consider" << std::endl;
     if (m_is_sched_loop_active && (m_iter != m_pending.end ()
                                 && m_iter_depth < m_queue_depth)) {
-        std::cout << "has_job_to_consider: yes" << std::endl;
+        //std::cout << "has_job_to_consider: yes" << std::endl;
         return true;
     }
     return false;

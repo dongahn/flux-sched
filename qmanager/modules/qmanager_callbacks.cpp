@@ -102,6 +102,7 @@ int qmanager_cb_t::post_sched_loop (flux_t *h, schedutil_t *schedutil,
             flux_log (h, LOG_DEBUG, "%s (id=%jd queue=%s)", note.c_str (),
                      static_cast<intmax_t> (job->id), queue_name.c_str ());
         }
+#if 0
         for (job = queue->pending_begin (); job != nullptr;
              job = queue->pending_next ()) {
             // if old_at == at, then no reason to send this annotation again.
@@ -118,6 +119,7 @@ int qmanager_cb_t::post_sched_loop (flux_t *h, schedutil_t *schedutil,
                 goto out;
             }
         }
+#endif
     }
     rc = 0;
 
@@ -382,7 +384,7 @@ void qmanager_cb_t::prep_watcher_cb (flux_reactor_t *r, flux_watcher_t *w,
         ctx->schedulable = ctx->schedulable || queue->is_schedulable ();
         ctx->scheduled = ctx->scheduled || queue->is_scheduled ();
     }
-    std::cout << "prep_watcher_cb: " << ctx->schedulable << ", " << ctx->scheduled << std::endl;
+    //std::cout << "prep_watcher_cb: " << ctx->schedulable << ", " << ctx->scheduled << std::endl;
     if (ctx->schedulable || ctx->scheduled)
         flux_watcher_start (ctx->idle);
 }
@@ -397,7 +399,7 @@ void qmanager_cb_t::check_watcher_cb (flux_reactor_t *r, flux_watcher_t *w,
         flux_watcher_stop (ctx->idle);
     if (!ctx->schedulable && !ctx->scheduled)
         return;
-    std::cout << "check_watcher_cb: about to call run_sched_loop" << std::endl;
+    //std::cout << "check_watcher_cb: about to call run_sched_loop" << std::endl;
     for (auto &kv: ctx->queues) {
         std::shared_ptr<queue_policy_base_t> &queue = kv.second;
         if (queue->run_sched_loop (static_cast<void *> (ctx->h), true) < 0) {
@@ -406,14 +408,14 @@ void qmanager_cb_t::check_watcher_cb (flux_reactor_t *r, flux_watcher_t *w,
         }
         queue->reset_schedulability ();
         queue->reset_scheduled ();
-        std::cout << "check_watcher_cb: " << queue->is_scheduled () << std::endl;
+        //std::cout << "check_watcher_cb: " << queue->is_scheduled () << std::endl;
     }
-    std::cout << "check_watcher_cb: about to call post_sched_loop" << std::endl;
+    //std::cout << "check_watcher_cb: about to call post_sched_loop" << std::endl;
     if (post_sched_loop (ctx->h, ctx->schedutil, ctx->queues) < 0) {
         flux_log_error (ctx->h, "%s: post_sched_loop", __FUNCTION__);
         return;
     }
-    std::cout << "check_watcher_cb: post_sched_loop returned" << std::endl;
+    //std::cout << "check_watcher_cb: post_sched_loop returned" << std::endl;
 }
 
 int qmanager_safe_cb_t::jobmanager_hello_cb (flux_t *h, const flux_msg_t *msg,

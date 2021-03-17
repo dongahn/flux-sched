@@ -97,7 +97,7 @@ static void match_allocate_chain_cont (flux_future_t *f, void *arg)
     const char *status = nullptr;
     queue_adapter_base_t *adapter = static_cast<queue_adapter_base_t *> (arg);
 
-    std::cout << "match_allocate_chain_cont called" << std::endl;
+    //std::cout << "match_allocate_chain_cont called" << std::endl;
 
     if (flux_rpc_get_unpack (f,
                              "{s:I s:s s:f s:s s:I}",
@@ -106,7 +106,7 @@ static void match_allocate_chain_cont (flux_future_t *f, void *arg)
                               "overhead", &ov,
                               "R", &rset,
                               "at", &at) == 0) {
-        std::cout << "flux_rpc_get_unpack returns" << std::endl;
+        //std::cout << "flux_rpc_get_unpack returns" << std::endl;
         // match succeeded. handle_match_success should move the current
         // job to the next job to consider.
         if (adapter->handle_match_success (rj, status, rset, at, ov) < 0) {
@@ -114,7 +114,7 @@ static void match_allocate_chain_cont (flux_future_t *f, void *arg)
             goto out;
         }
     } else {
-        std::cout << "flux_rpc_get_unpack else stmt" << std::endl;
+        //std::cout << "flux_rpc_get_unpack else stmt" << std::endl;
         // match succeeded. handle_match_success should move the current
         // job to the next job to conside unless errno == EBUSY
         if (adapter->handle_match_failure (errno) < 0) {
@@ -122,7 +122,7 @@ static void match_allocate_chain_cont (flux_future_t *f, void *arg)
             goto out;
         }
     }
-    std::cout << "about to call match_allocate_chain" << std::endl;
+    //std::cout << "about to call match_allocate_chain" << std::endl;
     if (reapi_module_t::match_allocate_chain (
                             flux_future_get_flux (f), adapter) < 0) {
         adapter->set_sched_loop_active (false);
@@ -161,7 +161,7 @@ int reapi_module_t::match_allocate_chain (void *h,
     flux_t *fh = static_cast<flux_t *> (h);
     flux_future_t *f = nullptr;
 
-    std::cout << "match_allocate_chain called" << std::endl;
+    //std::cout << "match_allocate_chain called" << std::endl;
 
     if (!adapter->has_job_to_consider ()) {
         // break out of the chain of match_allocate calls
@@ -179,21 +179,99 @@ int reapi_module_t::match_allocate_chain (void *h,
         errno = EINVAL;
         goto error;
     }
-    std::cout << "about to send sched-fluxion-resource.match" << std::endl;
+    //std::cout << "about to send sched-fluxion-resource.match" << std::endl;
     if (!(f = match_allocate_rpc (fh, cmd,
                                   static_cast<const int64_t> (jobid),
                                   jobspec.c_str ()))) {
         goto error;
     }
-    std::cout << "sched-fluxion-resource.match return" << std::endl;
+    //std::cout << "sched-fluxion-resource.match return" << std::endl;
     if (flux_future_then (f,
                           -1.0f,
                           match_allocate_chain_cont,
                           static_cast<void *> (adapter)) < 0) {
         goto error;
     }
-    std::cout << "flux_future_then return" << std::endl;
+    //std::cout << "flux_future_then return" << std::endl;
 
+    return 0;
+
+error:
+    flux_future_destroy (f);
+    return rc;
+}
+
+__attribute__((annotate ("@critical_path()")))
+static void match_allocate_async_cont (flux_future_t *f, void *arg)
+{
+    int64_t rj = -1;
+    int64_t at;
+    double ov;
+    const char *rset = nullptr;
+    const char *status = nullptr;
+    queue_adapter_base_t *adapter = static_cast<queue_adapter_base_t *> (arg);
+
+    std::cout << "match_allocate_async_cont called" << std::endl;
+
+    if (flux_rpc_get_unpack (f,
+                             "{s:I s:s s:f s:s s:I}",
+                              "jobid", &rj,
+                              "status", &status,
+                              "overhead", &ov,
+                              "R", &rset,
+                              "at", &at) == 0) {
+        //std::cout << "flux_rpc_get_unpack returns" << std::endl;
+        // match succeeded. handle_match_success should move the current
+        // job to the next job to consider.
+        if (adapter->handle_match_success (rj, status, rset, at, ov) < 0) {
+            adapter->set_sched_loop_active (false);
+            goto out;
+        }
+    } else {
+        //std::cout << "flux_rpc_get_unpack else stmt" << std::endl;
+        // match succeeded. handle_match_success should move the current
+        // job to the next job to conside unless errno == EBUSY
+        if (adapter->handle_match_failure (errno) < 0) {
+            adapter->set_sched_loop_active (false);
+            goto out;
+        }
+    }
+out:
+    flux_future_destroy (f);
+    return;
+}
+
+__attribute__((annotate ("@critical_path())")))
+int reapi_module_t::match_allocate_async (void *h, bool orelse_reserve,
+                                          const std::string &jobspec,
+                                          const uint64_t jobid,
+                                          queue_adapter_base_t *adapter)
+{
+    int rc = -1;
+    int64_t rj = -1;
+    flux_t *fh = (flux_t *)h;
+    flux_future_t *f = NULL;
+    const char *cmd = (orelse_reserve)? "allocate_orelse_reserve"
+                                      : "allocate_with_satisfiability";
+
+    if (!fh || jobspec == "" || jobid > INT64_MAX) {
+        errno = EINVAL;
+        goto error;
+    }
+
+    if (!(f = flux_rpc_pack (fh, "sched-fluxion-resource.match",
+                             FLUX_NODEID_ANY, 0,
+                             "{s:s s:I s:s}",
+                             "cmd", cmd, "jobid", (const int64_t)jobid,
+                             "jobspec", jobspec.c_str ()))) {
+        goto error;
+    }
+    if (flux_future_then (f,
+                          -1.0f,
+                          match_allocate_async_cont,
+                          static_cast<void *> (adapter)) < 0) {
+        goto error;
+    }
     return 0;
 
 error:
@@ -248,6 +326,7 @@ out:
     return rc;
 }
 
+__attribute__((annotate ("@critical_path(flow='outin')")))
 int reapi_module_t::cancel (void *h, const uint64_t jobid, bool noent_ok)
 {
     int rc = -1;
@@ -275,6 +354,46 @@ int reapi_module_t::cancel (void *h, const uint64_t jobid, bool noent_ok)
     rc = 0;
 
 out:
+    flux_future_destroy (f);
+    return rc;
+}
+
+__attribute__((annotate ("@critical_path(flow='in')")))
+static void cancel_async_cont (flux_future_t *f, void *arg)
+{
+    int rc = -1;
+    int saved_errno = errno;
+    if ((rc = flux_rpc_get (f, NULL)) < 0) {
+        if (errno == ENOENT) {
+            errno = saved_errno;
+        }
+    }
+    flux_future_destroy (f);
+}
+
+__attribute__((annotate ("@critical_path(flow='out')")))
+int reapi_module_t::cancel_async (void *h, const uint64_t jobid)
+{
+    int rc = -1;
+    flux_t *fh = (flux_t *)h;
+    flux_future_t *f = NULL;
+
+    if (!fh || jobid > INT64_MAX) {
+        errno = EINVAL;
+        goto error;
+    }
+    if (!(f = flux_rpc_pack (fh, "sched-fluxion-resource.cancel",
+                             FLUX_NODEID_ANY, 0,
+                             "{s:I}", "jobid", (const int64_t)jobid))) {
+        goto error;
+    }
+    if (flux_future_then (f, -1.0f,
+                          cancel_async_cont, nullptr) < 0) {
+        goto error;
+    }
+    return 0;
+
+error:
     flux_future_destroy (f);
     return rc;
 }
