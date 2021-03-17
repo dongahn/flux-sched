@@ -201,8 +201,7 @@ error:
     return rc;
 }
 
-__attribute__((annotate ("@critical_path()")))
-static void match_allocate_async_cont (flux_future_t *f, void *arg)
+static void match_allocate_multi_cont (flux_future_t *f, void *arg)
 {
     int64_t rj = -1;
     int64_t at;
@@ -211,67 +210,54 @@ static void match_allocate_async_cont (flux_future_t *f, void *arg)
     const char *status = nullptr;
     queue_adapter_base_t *adapter = static_cast<queue_adapter_base_t *> (arg);
 
-    std::cout << "match_allocate_async_cont called" << std::endl;
-
-    if (flux_rpc_get_unpack (f,
-                             "{s:I s:s s:f s:s s:I}",
-                              "jobid", &rj,
-                              "status", &status,
-                              "overhead", &ov,
-                              "R", &rset,
-                              "at", &at) == 0) {
-        //std::cout << "flux_rpc_get_unpack returns" << std::endl;
-        // match succeeded. handle_match_success should move the current
-        // job to the next job to consider.
-        if (adapter->handle_match_success (rj, status, rset, at, ov) < 0) {
-            adapter->set_sched_loop_active (false);
-            goto out;
-        }
+    if (flux_rpc_get_unpack (f, "{s:I s:s s:f s:s s:I}",
+                                  "jobid", &rj,
+                                  "status", &status,
+                                  "overhead", &ov,
+                                  "R", &rset,
+                                  "at", &at) == 0) {
+        if (adapter->handle_match_success (rj, status, rset, at, ov) < 0)
+            goto done;
     } else {
-        //std::cout << "flux_rpc_get_unpack else stmt" << std::endl;
-        // match succeeded. handle_match_success should move the current
-        // job to the next job to conside unless errno == EBUSY
-        if (adapter->handle_match_failure (errno) < 0) {
-            adapter->set_sched_loop_active (false);
-            goto out;
-        }
+        if (adapter->handle_match_failure (errno) < 0)
+            goto done;
     }
-out:
+    flux_future_reset (f);
+    return;
+
+done:
+    adapter->set_sched_loop_active (false);
     flux_future_destroy (f);
     return;
 }
 
-__attribute__((annotate ("@critical_path())")))
-int reapi_module_t::match_allocate_async (void *h, bool orelse_reserve,
-                                          const std::string &jobspec,
-                                          const uint64_t jobid,
-                                          queue_adapter_base_t *adapter)
+int reapi_module_t::match_allocate_multi_async (void *h,
+                                                bool orelse_reserve,
+                                                const char *jobs,
+                                                queue_adapter_base_t *adapter)
 {
     int rc = -1;
-    int64_t rj = -1;
-    flux_t *fh = (flux_t *)h;
-    flux_future_t *f = NULL;
-    const char *cmd = (orelse_reserve)? "allocate_orelse_reserve"
-                                      : "allocate_with_satisfiability";
+    flux_t *fh = static_cast<flux_t *> (h);
+    flux_future_t *f = nullptr;
 
-    if (!fh || jobspec == "" || jobid > INT64_MAX) {
+    const char *cmd = orelse_reserve ? "allocate_orelse_reserve"
+                                     : "allocate_with_satisfiability";
+    if (!fh) {
         errno = EINVAL;
         goto error;
     }
-
-    if (!(f = flux_rpc_pack (fh, "sched-fluxion-resource.match",
-                             FLUX_NODEID_ANY, 0,
-                             "{s:s s:I s:s}",
-                             "cmd", cmd, "jobid", (const int64_t)jobid,
-                             "jobspec", jobspec.c_str ()))) {
+    if (!(f = flux_rpc_pack (fh,
+                             "sched-fluxion-resource.match_multi",
+                             FLUX_NODEID_ANY, FLUX_RPC_STREAMING,
+                             "{s:s s:s}",
+                               "cmd", cmd,
+                               "jobs", jobs)))
         goto error;
-    }
     if (flux_future_then (f,
                           -1.0f,
-                          match_allocate_async_cont,
-                          static_cast<void *> (adapter)) < 0) {
+                          match_allocate_multi_cont,
+                          static_cast<void *> (adapter)) < 0)
         goto error;
-    }
     return 0;
 
 error:

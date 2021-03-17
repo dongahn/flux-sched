@@ -53,6 +53,13 @@ int reapi_cli_t::match_allocate_chain (void *h, queue_adapter_base_t *adapter)
     return NOT_YET_IMPLEMENTED;
 }
 
+int reapi_cli_t::match_allocate_multi_async (void *h, bool orelse_reserve,
+                                             const char *jobs,
+                                             queue_adapter_base_t *adapter)
+{
+    return NOT_YET_IMPLEMENTED;
+}
+
 int reapi_cli_t::update_allocate (void *h, const uint64_t jobid,
                                   const std::string &R, int64_t &at, double &ov,
                                   std::string &R_out)
