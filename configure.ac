@@ -23,7 +23,8 @@ AC_DEFINE([_GNU_SOURCE], 1,
           [Define _GNU_SOURCE so that we get all necessary prototypes])
 AC_PROG_CC_C99
 AC_PROG_CXX
-AX_CXX_COMPILE_STDCXX([11], [noext], [mandatory])
+#AX_CXX_COMPILE_STDCXX([11], [noext], [mandatory])
+AX_CXX_COMPILE_STDCXX([17], [noext], [mandatory])
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
 AM_PROG_CC_C_O
@@ -33,8 +34,9 @@ if test "$GCC" = yes; then
   WARNING_CFLAGS="-Wall -Werror -Werror=missing-field-initializers -Wno-error=deprecated-declarations"
   AC_SUBST([WARNING_CFLAGS])
 fi
+# -fno-new-ttp-matching is needed to work around C++17 non-compliance code in Boost
 if test "$GXX" = "yes"; then
-  WARNING_CXXFLAGS=$WARNING_CFLAGS
+  WARNING_CXXFLAGS="$WARNING_CFLAGS -fno-new-ttp-matching"
   AC_SUBST([WARNING_CXXFLAGS])
 fi
 
